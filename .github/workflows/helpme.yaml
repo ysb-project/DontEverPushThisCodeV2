@@ -228,3 +228,5 @@ jobs:
                 path: trivy-results.sarif
     # GATE#4: IaC scanning (Since there is no infrastructure cod here and it is out of scope for this class so we could skip it HELL YEAH!)
     # GATE#5: DAST (We have OWASP ZAP workshop here so we can skip this one too! YOHOOO!)
+
+    
