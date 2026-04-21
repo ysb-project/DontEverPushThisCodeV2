@@ -44,8 +44,8 @@ jobs:
                 # head: ???
                 # TODO#3: add extra_args flag to report ONLY VERIFIED secrets (reduce noise)
                 # extra_args: ???
-                base: ${{ github.event.repository.default_branch }}
-                head: HEAD
+             #   base: ${{ github.event.repository.default_branch }}
+              #  head: HEAD
                 extra_args: --verified
 
             # Gitleaks scans code + history for regex patterns that look like secrets. It can be more accurate than TruffleHog, but may miss live creds that don't match known patterns.
@@ -136,15 +136,17 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
+            - name: Setup Node
+              uses: actions/setup-node@v4
               with:
                 node-version: 20
-            - run: npm install
 
             # TODO#10: set up Node 20 using actions/setup-node@v4
 
             # TODO#11: install npm deps so Dependency-Check can resolve full tree
             #          Hint: `npm install` or `npm ci`
-
+            - name: Install dependencies
+              run: npm install
               # OWASP Dependency-Check is a popular open-source tool that scans your dependencies for known vulnerabilities. It can output results in SARIF format for GitHub Security tab integration, as well as HTML for human-readable reports.
             - name: Depcheck
               uses: dependency-check/Dependency-Check_Action@main
@@ -229,4 +231,3 @@ jobs:
     # GATE#4: IaC scanning (Since there is no infrastructure cod here and it is out of scope for this class so we could skip it HELL YEAH!)
     # GATE#5: DAST (We have OWASP ZAP workshop here so we can skip this one too! YOHOOO!)
 
-    
