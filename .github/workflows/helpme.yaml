@@ -40,13 +40,10 @@ jobs:
               with:
                 path: ./
                 # TODO#2: set base + HEAD refs so TruffleHog scans the commit diff
-                # base: ???
-                # head: ???
+                base: ${{ github.event.repository.default_branch }}  # FIX#2: uncomment base ref
+                head: HEAD                                            # FIX#2: uncomment head ref
                 # TODO#3: add extra_args flag to report ONLY VERIFIED secrets (reduce noise)
-                # extra_args: ???
-             #   base: ${{ github.event.repository.default_branch }}
-              #  head: HEAD
-                extra_args: --verified
+                extra_args: --verified                                # FIX#3: only report verified secrets
 
             # Gitleaks scans code + history for regex patterns that look like secrets. It can be more accurate than TruffleHog, but may miss live creds that don't match known patterns.
             # TODO#4: add Gitleaks step below.
@@ -86,7 +83,8 @@ jobs:
               uses: SonarSource/sonarqube-scan-action@v7.1.0
               continue-on-error: true
               env:
-                  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+                SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+                SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}  # FIX#6: เพิ่ม SONAR_HOST_URL (สาเหตุ exit code 3)
 
     # GATE#1b: SAST via CodeQL (results in GitHub Security tab)
     codeql-scan:
@@ -104,7 +102,7 @@ jobs:
 
               # CodeQL is GitHub's native code scanning solution that uses a powerful query language to find security and quality issues. It integrates directly with the GitHub Security tab and can be customized with your own queries.
             - name: Initialize CodeQL
-              uses: github/codeql-action/init@v3
+              uses: github/codeql-action/init@v4  # FIX: v3 → v4 (v3 deprecated ธันวาคม 2026)
               with:
                 languages: ${{ matrix.language }}
                 # TODO#8: enable extended security + quality query suites
@@ -121,10 +119,10 @@ jobs:
                 # Q: Could you write a custom .ql query? what would that look like?
 
             # TODO#9: add analyze step
-            # Action: github/codeql-action/analyze@v3
+            # Action: github/codeql-action/analyze@v4
             # Set category so matrix runs don't collide in Security tab.
             - name: Perform CodeQL Analysis
-              uses: github/codeql-action/analyze@v3
+              uses: github/codeql-action/analyze@v4  # FIX: v3 → v4
               with:
                 category: "/language:${{ matrix.language }}"
 
@@ -136,17 +134,18 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
+
+            # TODO#10: set up Node 20 using actions/setup-node@v4
             - name: Setup Node
               uses: actions/setup-node@v4
               with:
                 node-version: 20
 
-            # TODO#10: set up Node 20 using actions/setup-node@v4
-
             # TODO#11: install npm deps so Dependency-Check can resolve full tree
             #          Hint: `npm install` or `npm ci`
             - name: Install dependencies
               run: npm install
+
               # OWASP Dependency-Check is a popular open-source tool that scans your dependencies for known vulnerabilities. It can output results in SARIF format for GitHub Security tab integration, as well as HTML for human-readable reports.
             - name: Depcheck
               uses: dependency-check/Dependency-Check_Action@main
@@ -165,17 +164,17 @@ jobs:
                     --enableRetired
 
             # TODO#14: upload Depcheck SARIF to GitHub Security tab
-            # Action: github/codeql-action/upload-sarif@v3
+            # Action: github/codeql-action/upload-sarif@v4
             # sarif_file: reports/dependency-check-report.sarif
             # category: dependency-check
             - name: Upload Depcheck SARIF to Security tab
               if: always() 
               #the above line meant to upload SARIF even if the Depcheck step fails (e.g. due to high CVSS findings), so that we can see results in Security tab and fix issues.
-              uses: github/codeql-action/upload-sarif@v3
+              uses: github/codeql-action/upload-sarif@v4  # FIX: v3 → v4
               continue-on-error: true
               with:
-                  sarif_file: reports/dependency-check-report.sarif
-                  category: dependency-check
+                sarif_file: reports/dependency-check-report.sarif
+                category: dependency-check
 
             # TODO#15: upload raw Depcheck report folder as artifact
             # Action: actions/upload-artifact@v4
@@ -195,11 +194,11 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-            - name: Build Image
-              run: docker build -t my-app:latest .
 
             # TODO#16: build the Docker image tagged `my-app:latest`
             #          Hint: `docker build -t ...`
+            - name: Build Image
+              run: docker build -t my-app:latest .
 
             - name: Trivy Scan
               uses: aquasecurity/trivy-action@master
@@ -207,27 +206,31 @@ jobs:
               with:
                 image-ref: 'my-app:latest'
                 # TODO#17: output format for Security tab integration
-                format: 'SARIF'
+                format: 'sarif'
                 output: 'trivy-results.sarif'
                 # TODO#18: which severities should be reported? (UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL)
                 severity: 'HIGH,CRITICAL'
-                ignore-unfixed: true
                 # TODO#19: should we include CVEs with no available fix? set flag accordingly
-                # ignore-unfixed: ???
+                ignore-unfixed: true
 
             # TODO#20: upload Trivy SARIF to Security tab
-            # Action: github/codeql-action/upload-sarif@v3, category: trivy
+            # Action: github/codeql-action/upload-sarif@v4, category: trivy
             - name: Upload Trivy SARIF
-              uses: github/codeql-action/upload-sarif@v3
+              if: always()          # FIX#20: เพิ่ม if: always() แก้ปัญหา "Path does not exist: trivy-results.sarif"
+              uses: github/codeql-action/upload-sarif@v4  # FIX: v3 → v4
+              continue-on-error: true  # FIX#20: กันกรณีไฟล์ไม่ถูกสร้าง
               with:
                 sarif_file: 'trivy-results.sarif'
                 category: trivy
+
             # TODO#21: upload trivy-results.sarif as workflow artifact
             - name: Upload Trivy Artifact
+              if: always()          # FIX#21: เพิ่ม if: always()
               uses: actions/upload-artifact@v4
+              continue-on-error: true
               with:
                 name: trivy-results
                 path: trivy-results.sarif
-    # GATE#4: IaC scanning (Since there is no infrastructure cod here and it is out of scope for this class so we could skip it HELL YEAH!)
-    # GATE#5: DAST (We have OWASP ZAP workshop here so we can skip this one too! YOHOOO!)
 
+    # GATE#4: IaC scanning (Since there is no infrastructure code here and it is out of scope for this class so we could skip it HELL YEAH!)
+    # GATE#5: DAST (We have OWASP ZAP workshop here so we can skip this one too! YOHOOO!)
